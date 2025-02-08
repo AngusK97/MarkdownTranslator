@@ -16,12 +16,24 @@ COLOR_BUTTON = "#3d3d3d"     # 按钮背景色
 COLOR_HOVER = "#4d4d4d"      # 按钮悬停色
 FONT_NAME = "微软雅黑"        # 主要字体
 FONT_SIZE = 10               # 基础字号
+WINDOW_WIDTH = 680
+WINDOW_HEIGHT = 580
 
 class TranslationApp:
     def __init__(self, master):
         self.master = master
         master.title("Markdown 翻译工具")
-        master.geometry("680x580")  
+        master.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")  
+
+        # ===== 新增窗口居中代码 =====
+        # 计算窗口位置
+        screen_width = master.winfo_screenwidth()
+        screen_height = master.winfo_screenheight()
+        x = (screen_width - WINDOW_WIDTH) // 2  # 680是窗口宽度
+        y = (screen_height - WINDOW_HEIGHT) // 2  # 580是窗口高度
+        master.geometry(f"+{x}+{y}")  # 设置窗口位置
+        # ===== 位置设置结束 =====
+
         master.configure(bg=COLOR_BG)  # 设置主窗口背景色
 
         # ======================== 字体定义 ========================
