@@ -3,7 +3,7 @@ import time
 import re
 import threading
 import json
-from tkinter import Tk, Button, Label, filedialog, messagebox, StringVar, Entry, Frame, Text, Checkbutton, BooleanVar
+from tkinter import Tk, Button, Label, filedialog, messagebox, StringVar, Entry, Frame, Text, Checkbutton, BooleanVar, OptionMenu
 from tkinter.ttk import Progressbar
 from google.cloud import translate_v2 as translate
 
@@ -17,7 +17,21 @@ COLOR_HOVER = "#4d4d4d"      # Button hover color
 FONT_NAME = "微软雅黑"        # Main font
 FONT_SIZE = 10               # Base font size
 WINDOW_WIDTH = 680
-WINDOW_HEIGHT = 580
+WINDOW_HEIGHT = 680  # Increased height for additional options
+
+# Supported languages for translation
+LANGUAGES = {
+    "English": "en",
+    "Chinese": "zh-CN",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Japanese": "ja",
+    "Korean": "ko",
+    "Russian": "ru",
+    "Italian": "it",
+    "Portuguese": "pt"
+}
 
 class TranslationApp:
     def __init__(self, master):
@@ -44,6 +58,8 @@ class TranslationApp:
         self.folder_path = StringVar()
         self.output_folder = StringVar()
         self.credentials_path = StringVar()
+        self.source_language = StringVar(value="Chinese")  # Default source language
+        self.target_language = StringVar(value="English")  # Default target language
         
         # Set initial values
         self.folder_path.set("Input folder not selected")
@@ -78,6 +94,9 @@ class TranslationApp:
         # ======================== Input and Output Path Section ========================
         self.create_path_section("Input Folder", self.select_input_folder, self.folder_path)
         self.create_path_section("Output Folder", self.select_output_folder, self.output_folder)
+
+        # ======================== Language Selection ========================
+        self.create_language_selection()
 
         # ======================== Obsidian Option ========================
         self.obsidian_var = BooleanVar(value=False)
@@ -127,6 +146,18 @@ class TranslationApp:
         self.load_credentials()
         self.check_ready()
         self.setup_style()
+
+    # ======================== Create Language Selection ========================
+    def create_language_selection(self):
+        """Create language selection dropdowns for source and target languages."""
+        lang_frame = Frame(self.main_frame, bg=COLOR_BG)
+        lang_frame.pack(pady=10)
+
+        Label(lang_frame, text="Source Language:", font=self.font_normal, fg=COLOR_FG, bg=COLOR_BG).pack(side="left", padx=5)
+        OptionMenu(lang_frame, self.source_language, *LANGUAGES.keys()).pack(side="left", padx=5)
+
+        Label(lang_frame, text="Target Language:", font=self.font_normal, fg=COLOR_FG, bg=COLOR_BG).pack(side="left", padx=5)
+        OptionMenu(lang_frame, self.target_language, *LANGUAGES.keys()).pack(side="left", padx=5)
 
     # ======================== Custom Style Method ========================
     def setup_style(self):
@@ -245,16 +276,18 @@ class TranslationApp:
     def start_translation(self):
         folder = self.folder_path.get()
         output_folder = self.output_folder.get()
+        source_lang = LANGUAGES[self.source_language.get()]  # Get the code for source language
+        target_lang = LANGUAGES[self.target_language.get()]  # Get the code for target language
 
         if not os.path.exists(folder):
             messagebox.showerror("Error", "Input folder does not exist!")
             return
 
         self.toggle_buttons(False)
-        thread = threading.Thread(target=self.run_translation, args=(folder, output_folder))
+        thread = threading.Thread(target=self.run_translation, args=(folder, output_folder, source_lang, target_lang))
         thread.start()
 
-    def run_translation(self, input_folder, output_folder):
+    def run_translation(self, input_folder, output_folder, source_lang, target_lang):
         try:
             self.progress["value"] = 0
             files = [f for f in os.listdir(input_folder) if f.endswith('.md')]
@@ -264,7 +297,7 @@ class TranslationApp:
                 self.log(f"Processing: {filename} ({idx+1}/{total_files})")
                 file_path = os.path.join(input_folder, filename)
                 translated_file_path = os.path.join(output_folder, filename)
-                self.translate_file(file_path, translated_file_path)
+                self.translate_file(file_path, translated_file_path, source_lang, target_lang)
                 self.progress["value"] = (idx + 1) / total_files * 100
                 self.master.update_idletasks()
 
@@ -277,7 +310,7 @@ class TranslationApp:
             self.toggle_buttons(True)
             self.progress["value"] = 0
 
-    def translate_file(self, input_path, output_path):
+    def translate_file(self, input_path, output_path, source_lang, target_lang):
         translate_client = translate.Client()
         with open(input_path, 'r', encoding='utf-8') as file:
             lines = file.readlines()
@@ -288,13 +321,13 @@ class TranslationApp:
             if not line_content.strip():
                 translated_lines.append('\n')
                 continue
-            translated_line = self.process_markdown_line(translate_client, line_content)
+            translated_line = self.process_markdown_line(translate_client, line_content, source_lang, target_lang)
             translated_lines.append(translated_line + '\n')
 
         with open(output_path, 'w', encoding='utf-8') as f:
             f.writelines(translated_lines)
 
-    def process_markdown_line(self, translate_client, line):
+    def process_markdown_line(self, translate_client, line, source_lang, target_lang):
         patterns = [
             (r'(\[\[.*?\]\])', 'obsidian_link'),
             (r'^(\s*[-*+]\s+)(.*)', 'list'),
@@ -311,11 +344,11 @@ class TranslationApp:
                     return line
                 if pattern_type in ['list', 'ordered_list', 'header']:
                     symbol, content = match.groups()
-                    translated_content = translate_client.translate(content, target_language='en')['translatedText']
+                    translated_content = translate_client.translate(content, source_language=source_lang, target_language=target_lang)['translatedText']
                     return f"{symbol}{translated_content}"
                 elif pattern_type in ['markdown_link', 'inline_code']:
                     return line
-        return translate_client.translate(line, target_language='en')['translatedText']
+        return translate_client.translate(line, source_language=source_lang, target_language=target_lang)['translatedText']
 
     # ======================== Helper Methods ========================
     def toggle_buttons(self, enable=True):
