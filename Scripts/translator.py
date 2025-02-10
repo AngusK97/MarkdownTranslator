@@ -21,6 +21,7 @@ def translate_file(input_path, output_path, source_lang, target_lang):
         f.writelines(translated_lines)
 
 def process_markdown_line(translate_client, line, source_lang, target_lang):
+    # 定义正则表达式模式
     patterns = [
         (r'(\[\[.*?\]\])', 'obsidian_link'),
         (r'^(\s*[-*+]\s+)(.*)', 'list'),
@@ -30,11 +31,28 @@ def process_markdown_line(translate_client, line, source_lang, target_lang):
         (r'(`.+?`)', 'inline_code')
     ]
 
+    # 检查是否有 Obsidian 链接
+    obsidian_links = re.findall(r'(\[\[.*?\]\])', line)
+    if obsidian_links:
+        # 用占位符替换 Obsidian 链接
+        for i, link in enumerate(obsidian_links):
+            placeholder = f"@@link{i}@@"
+            line = line.replace(link, placeholder)
+
+        # 进行翻译
+        translated_line = translate_client.translate(line, source_language=source_lang, target_language=target_lang)['translatedText']
+        
+        # 将占位符替换回原来的 Obsidian 链接
+        for i, link in enumerate(obsidian_links):
+            placeholder = f"@@link{i}@@"
+            translated_line = translated_line.replace(placeholder, link)
+
+        return html.unescape(translated_line)
+
+    # 如果没有 Obsidian 链接，继续原来的逻辑
     for pattern, pattern_type in patterns:
         match = re.search(pattern, line)
         if match:
-            if pattern_type == 'obsidian_link':
-                return line  # Return unmodified for obsidian links
             if pattern_type in ['list', 'ordered_list', 'header']:
                 symbol, content = match.groups()
                 result = translate_client.translate(content, source_language=source_lang, target_language=target_lang)['translatedText']
