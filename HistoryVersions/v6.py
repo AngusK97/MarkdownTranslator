@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import html
 import threading
 import json
 from tkinter import Tk, Button, Label, filedialog, messagebox, StringVar, Entry, Frame, Text, Checkbutton, BooleanVar, OptionMenu
@@ -55,19 +56,19 @@ class TranslationApp:
         self.font_mono = ("Consolas", FONT_SIZE)  # Monospace font for path display
 
         # ======================== Variable Initialization ========================
-        self.folder_path = StringVar()
+        self.input_path = StringVar()
         self.output_folder = StringVar()
         self.credentials_path = StringVar()
         self.source_language = StringVar(value="Chinese")  # Default source language
         self.target_language = StringVar(value="English")  # Default target language
         
         # Set initial values
-        self.folder_path.set("Input folder not selected")
+        self.input_path.set("Input file or folder not selected")
         self.output_folder.set("Output folder not selected")
         self.credentials_path.set("Google credentials file not selected")
         
         # Add variable tracking
-        self.folder_path.trace_add("write", lambda *_: self.check_ready())
+        self.input_path.trace_add("write", lambda *_: self.check_ready())
         self.output_folder.trace_add("write", lambda *_: self.check_ready())
         self.credentials_path.trace_add("write", lambda *_: self.check_ready())
         
@@ -91,8 +92,10 @@ class TranslationApp:
                               anchor="w")
         self.cred_label.pack(side="left", fill="x", expand=True)
 
-        # ======================== Input and Output Path Section ========================
-        self.create_path_section("Input Folder", self.select_input_folder, self.folder_path)
+        # ======================== Input Path Section ========================
+        self.create_path_section("Input File or Folder", self.select_input_path, self.input_path)
+
+        # ======================== Output Path Section ========================
         self.create_path_section("Output Folder", self.select_output_folder, self.output_folder)
 
         # ======================== Language Selection ========================
@@ -198,17 +201,11 @@ class TranslationApp:
             font=self.font_normal,
             fg=COLOR_FG,
             bg=COLOR_BG,
-            width=10,
+            width=20,
             anchor="w").pack(side="left", padx=5)
             
         btn = self.create_button(frame, f"Select {title}", command)
         btn.pack(side="left", padx=5)
-        
-        # Save button reference to instance variable
-        if title == "Input Folder":
-            self.input_button = btn
-        elif title == "Output Folder":
-            self.output_button = btn
         
         entry = Entry(frame,
                     textvariable=variable,
@@ -245,11 +242,15 @@ class TranslationApp:
             self.save_credentials(file_selected)
             self.check_ready()
 
-    def select_input_folder(self):
-        folder_selected = filedialog.askdirectory()
-        if folder_selected:
-            self.folder_path.set(folder_selected)
-            self.check_ready()
+    def select_input_path(self):
+        """Allow user to select a file or folder for translation."""
+        path_selected = filedialog.askopenfilename(filetypes=[("Markdown Files", "*.md"), ("All Files", "*.*")])
+        if path_selected:
+            self.input_path.set(path_selected)
+        else:
+            folder_selected = filedialog.askdirectory()
+            if folder_selected:
+                self.input_path.set(folder_selected)
 
     def select_output_folder(self):
         folder_selected = filedialog.askdirectory()
@@ -261,7 +262,7 @@ class TranslationApp:
     def check_ready(self, *args):
         ready_conditions = [
             self.credentials_path.get() != "Google credentials file not selected",
-            self.folder_path.get() not in ["Input folder not selected", ""],
+            self.input_path.get() not in ["Input file or folder not selected", ""],
             self.output_folder.get() not in ["Output folder not selected", ""]
         ]
         
@@ -274,30 +275,37 @@ class TranslationApp:
         self.master.update_idletasks()
 
     def start_translation(self):
-        folder = self.folder_path.get()
+        input_path = self.input_path.get()
         output_folder = self.output_folder.get()
         source_lang = LANGUAGES[self.source_language.get()]  # Get the code for source language
         target_lang = LANGUAGES[self.target_language.get()]  # Get the code for target language
 
-        if not os.path.exists(folder):
-            messagebox.showerror("Error", "Input folder does not exist!")
+        if not os.path.exists(input_path):
+            messagebox.showerror("Error", "Input file or folder does not exist!")
             return
 
         self.toggle_buttons(False)
-        thread = threading.Thread(target=self.run_translation, args=(folder, output_folder, source_lang, target_lang))
+        thread = threading.Thread(target=self.run_translation, args=(input_path, output_folder, source_lang, target_lang))
         thread.start()
 
-    def run_translation(self, input_folder, output_folder, source_lang, target_lang):
+    def run_translation(self, input_path, output_folder, source_lang, target_lang):
         try:
             self.progress["value"] = 0
-            files = [f for f in os.listdir(input_folder) if f.endswith('.md')]
+            files = []
+
+            # Check if input path is a file or folder
+            if os.path.isfile(input_path):
+                files = [input_path]  # Single file
+            elif os.path.isdir(input_path):
+                files = [f for f in os.listdir(input_path) if f.endswith('.md')]
+                files = [os.path.join(input_path, f) for f in files]  # Full paths of files in the folder
+
             total_files = len(files)
 
             for idx, filename in enumerate(files):
                 self.log(f"Processing: {filename} ({idx+1}/{total_files})")
-                file_path = os.path.join(input_folder, filename)
-                translated_file_path = os.path.join(output_folder, filename)
-                self.translate_file(file_path, translated_file_path, source_lang, target_lang)
+                translated_file_path = os.path.join(output_folder, os.path.basename(filename))
+                self.translate_file(filename, translated_file_path, source_lang, target_lang)
                 self.progress["value"] = (idx + 1) / total_files * 100
                 self.master.update_idletasks()
 
@@ -344,19 +352,20 @@ class TranslationApp:
                     return line
                 if pattern_type in ['list', 'ordered_list', 'header']:
                     symbol, content = match.groups()
-                    translated_content = translate_client.translate(content, source_language=source_lang, target_language=target_lang)['translatedText']
+                    result = translate_client.translate(content, source_language=source_lang, target_language=target_lang)['translatedText']
+                    translated_content = html.unescape(result)
                     return f"{symbol}{translated_content}"
                 elif pattern_type in ['markdown_link', 'inline_code']:
                     return line
-        return translate_client.translate(line, source_language=source_lang, target_language=target_lang)['translatedText']
+        result = translate_client.translate(line, source_language=source_lang, target_language=target_lang)['translatedText']
+        return html.unescape(result)
 
     # ======================== Helper Methods ========================
     def toggle_buttons(self, enable=True):
         state = "normal" if enable else "disabled"
         self.translate_button.config(state=state)
         self.cred_button.config(state=state)
-        self.input_button.config(state=state)
-        self.output_button.config(state=state)
+        self.output_folder.set(state)
 
     def log(self, message):
         self.log_text.insert("end", message + "\n")
