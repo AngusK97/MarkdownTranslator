@@ -1,4 +1,3 @@
-import os
 import html
 import re
 from google.cloud import translate_v2 as translate

@@ -1,8 +1,5 @@
 import os
 import threading
-import json
-import html
-import re
 from tkinter import Frame, Button, Label, filedialog, messagebox, StringVar, Entry, Checkbutton, BooleanVar, OptionMenu, Text
 from tkinter.ttk import Progressbar
 from config import load_credentials, save_credentials

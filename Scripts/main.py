@@ -1,6 +1,3 @@
-import os
-import threading
-import json
 from tkinter import Tk
 from ui_components import TranslationApp
 
