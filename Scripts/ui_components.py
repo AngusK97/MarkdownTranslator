@@ -275,10 +275,12 @@ class TranslationApp:
                 messagebox.showwarning("Warning", "No Markdown files found in the selected folder.")
                 return
 
+            keep_obsidian_links = self.obsidian_var.get()  # Get the state of the checkbox
+
             for idx, filename in enumerate(files):
                 self.log(f"Processing: {filename} ({idx+1}/{total_files})")
                 translated_file_path = os.path.join(output_folder, os.path.basename(filename))
-                translate_file(filename, translated_file_path, source_lang, target_lang)
+                translate_file(filename, translated_file_path, source_lang, target_lang, keep_obsidian_links)
                 self.progress["value"] = (idx + 1) / total_files * 100
                 self.master.update_idletasks()
 
