@@ -33,7 +33,21 @@ class TranslationApp:
     def __init__(self, master):
         self.master = master
         master.title("Markdown Translation Tool")
-        master.geometry("680x680")
+
+        # 获取屏幕宽度和高度
+        screen_width = master.winfo_screenwidth()
+        screen_height = master.winfo_screenheight()
+
+        # 设置窗口的宽度和高度
+        window_width = 680
+        window_height = 680
+
+        # 计算居中位置
+        x = (screen_width // 2) - (window_width // 2)
+        y = (screen_height // 2) - (window_height // 2)
+
+        # 设置窗口大小和位置
+        master.geometry(f"{window_width}x{window_height}+{x}+{y}")
         master.configure(bg=COLOR_BG)
 
         # ======================== Variable Initialization ========================
